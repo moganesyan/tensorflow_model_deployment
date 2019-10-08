@@ -3,6 +3,7 @@ import tensorflow as tf
 import keras.backend as K
 from tensorflow.python.saved_model import signature_constants
 from tensorflow.python.saved_model import tag_constants
+from tensorflow.tools.graph_transforms import TransformGraph
 
 import os
 import sys
@@ -27,13 +28,59 @@ def get_config():
     return config
 
 
-def freeze_session(session, keep_var_names=None, output_names=None, clear_devices=True):
+def describe_graph(graph_def, show_nodes=False):
+  print('Input Feature Nodes: {}'.format(
+      [node.name for node in graph_def.node if node.op=='Placeholder']))
+  print('')
+  print('Unused Nodes: {}'.format(
+      [node.name for node in graph_def.node if 'unused'  in node.name]))
+  print('')
+  print('Output Nodes: {}'.format( 
+      [node.name for node in graph_def.node if (
+          'predictions' in node.name or 'softmax' in node.name)]))
+  print('')
+  print('Quantization Nodes: {}'.format(
+      [node.name for node in graph_def.node if 'quant' in node.name]))
+  print('')
+  print('Constant Count: {}'.format(
+      len([node for node in graph_def.node if node.op=='Const'])))
+  print('')
+  print('Variable Count: {}'.format(
+      len([node for node in graph_def.node if 'Variable' in node.op])))
+  print('')
+  print('Identity Count: {}'.format(
+      len([node for node in graph_def.node if node.op=='Identity'])))
+  print('', 'Total nodes: {}'.format(len(graph_def.node)), '')
+
+  if show_nodes==True:
+    for node in graph_def.node:
+      print('Op:{} - Name: {}'.format(node.op, node.name))
+
+
+def get_size(model_dir, model_file='saved_model.pb'):
+  model_file_path = os.path.join(model_dir, model_file)
+  print(model_file_path, '')
+  pb_size = os.path.getsize(model_file_path)
+  variables_size = 0
+  if os.path.exists(
+      os.path.join(model_dir,'variables/variables.data-00000-of-00001')):
+    variables_size = os.path.getsize(os.path.join(
+        model_dir,'variables/variables.data-00000-of-00001'))
+    variables_size += os.path.getsize(os.path.join(
+        model_dir,'variables/variables.index'))
+  print('Model size: {} KB'.format(round(pb_size/(1024.0),3)))
+  print('Variables size: {} KB'.format(round( variables_size/(1024.0),3)))
+  print('Total Size: {} KB'.format(round((pb_size + variables_size)/(1024.0),3)))
+
+
+def freeze_session(session, keep_var_names=None, input_names = None, output_names=None, clear_devices=True):
     graph = sess.graph
 
     with graph.as_default():
         freeze_var_names = list(set(v.op.name for v in tf.global_variables()).difference(keep_var_names or []))
 
         output_names = output_names or []
+        input_names = input_names or []
         input_graph_def = graph.as_graph_def()
 
         if clear_devices:
@@ -42,13 +89,29 @@ def freeze_session(session, keep_var_names=None, output_names=None, clear_device
 
         frozen_graph = tf.graph_util.convert_variables_to_constants(
             session, input_graph_def, output_names, freeze_var_names)
-        return frozen_graph
+
+        transforms = [
+                         "remove_nodes(op=Identity)", 
+                         "merge_duplicate_nodes",
+                         "strip_unused_nodes",
+                         "fold_constants(ignore_errors=true)",
+                         "fold_batch_norms",
+                         "quantize_nodes", 
+                         "quantize_weights"
+                        ]
+        optimized_graph_def = TransformGraph(
+                                              frozen_graph,
+                                              input_names,
+                                              output_names,
+                                              transforms)
+        return optimized_graph_def
 
 
 def freeze_model(model, name):
     frozen_graph = freeze_session(
         sess,
-        output_names=[out.op.name for out in model.outputs][:4])
+        output_names=[out.op.name for out in model.outputs][:4],
+        input_names=[input_tensor.op.name for input_tensor in model.inputs][:4])
     directory = PATH_TO_SAVE_FROZEN_PB
     tf.train.write_graph(frozen_graph, directory, name , as_text=False)
     print("*"*80)
@@ -70,6 +133,10 @@ def make_serving_ready(model_path, save_serve_path, version_number):
         graph_def.ParseFromString(f.read())
 
     sigs = {}
+
+    print("*" * 80)
+    describe_graph(graph_def)
+    print("*" * 80)
 
     with tf.Session(graph=tf.Graph()) as sess:
         # name="" is important to ensure we don't get spurious prefixing
@@ -115,5 +182,9 @@ freeze_model(model.keras_model, FROZEN_NAME)
 make_serving_ready(os.path.join(PATH_TO_SAVE_FROZEN_PB, FROZEN_NAME),
                      PATH_TO_SAVE_TENSORFLOW_SERVING_MODEL,
                      VERSION_NUMBER)
+
+print("*" * 80)
+get_size(os.path.join(PATH_TO_SAVE_TENSORFLOW_SERVING_MODEL, str(VERSION_NUMBER)))
+print("*" * 80)
 
 print("COMPLETED")
