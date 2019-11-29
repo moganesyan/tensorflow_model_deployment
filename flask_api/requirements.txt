@@ -1,0 +1,17 @@
+# production requirements
+numpy==1.16.4
+pandas==0.24.2
+imgaug==0.2.9
+scikit-image==0.15.0
+scikit-learn==0.21.2
+imbalanced-learn==0.5.0
+tensorflow==1.14.0
+keras==2.2.4
+flask==1.1.1
+opencv-python==4.1.0.25
+h5py==2.9.0
+
+# packaging
+setuptools==41.2.0
+wheel == 0.33.4
+pathlib==1.0.1

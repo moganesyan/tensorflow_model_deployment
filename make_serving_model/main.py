@@ -95,9 +95,10 @@ def freeze_session(session, keep_var_names=None, input_names = None, output_name
                          "merge_duplicate_nodes",
                          "strip_unused_nodes",
                          "fold_constants(ignore_errors=true)",
-                         "fold_batch_norms",
-                         "quantize_nodes", 
-                         "quantize_weights"
+                         "fold_batch_norms"
+                         # ,
+                         # "quantize_nodes", 
+                         # "quantize_weights"
                         ]
         optimized_graph_def = TransformGraph(
                                               frozen_graph,
