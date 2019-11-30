@@ -1,8 +1,10 @@
 #!/bin/bash
-docker run -d --name serving_base tensorflow/serving:latest
+nvidia-docker run -d --name serving-base tensorflow/serving:latest
 PWD=$(pwd)
-docker cp $PWD/serving_model/ serving_base:/models/coco_test
-docker commit --change "ENV MODEL_NAME coco_test" serving_base mikheil/coco_test
-docker kill serving_base
-docker rm serving_base
-docker run -p 8501:8501 -t mikheil/coco_test &
+nvidia-docker cp $PWD/serving_model/ serving-base:/models/coco_test
+nvidia-docker commit --change "ENV MODEL_NAME coco_test" serving-base mikheil/coco-test
+nvidia-docker kill serving-base
+nvidia-docker rm serving-base
+#docker run -p 8501:8501 -t mikheil/coco_test &
+nvidia-docker tag  mikheil/coco-test gcr.io/scraper-playground/coco-test:latest
+gcloud docker -- push gcr.io/scraper-playground/coco-test:latest

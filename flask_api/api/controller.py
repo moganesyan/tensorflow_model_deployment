@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import io
+import os
 import requests
 from PIL import Image
 from flask import Blueprint, jsonify, request
@@ -60,9 +61,10 @@ def predict():
             image = Image.open(io.BytesIO(image))
             payload, image_shape, molded_image_shape, window = prepare_payload(image)
             # _logger.debug(f'{payload}')
-
+            
             headers = {"content-type": "application/json"}
-            json_response = requests.post('http://localhost:8501/v1/models/coco_test:predict', data=json.dumps(payload), headers=headers)
+            target_host = str(os.environ['TARGET_HOST'])
+            json_response = requests.post(f'http://{target_host}/v1/models/coco_test:predict', data=json.dumps(payload), headers=headers)
             response = json_response.json()
 
             _logger.debug(f'{json_response.status_code}')

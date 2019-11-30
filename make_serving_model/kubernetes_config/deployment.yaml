@@ -1,0 +1,32 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: coco-test
+  namespace: prod
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: coco-test
+  template:
+    metadata:
+      labels:
+        app: coco-test
+    spec:
+      containers:
+      - name: coco-test
+        image: gcr.io/scraper-playground/coco-test:latest
+        resources:
+          requests:
+            memory: "2500Mi"
+            cpu: "800m"
+          limits:
+            memory: "2700Mi"
+            cpu: "950m"
+            # nvidia.com/gpu: 1
+        ports:
+        - name: http
+          containerPort: 8501

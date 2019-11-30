@@ -1,3 +1,6 @@
 __pycache__/
 logs/
 .DS_Store
+build_image.sh
+deploy_cluster.sh
+gke_setup/
