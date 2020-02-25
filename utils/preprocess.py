@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import math
+import skimage
 
 class PreprocessImage():
     def __init__(self, config):
@@ -196,7 +197,7 @@ class PreprocessImage():
 
         # Resize image using bilinear interpolation
         if scale != 1:
-            image = resize(image, (round(h * scale), round(w * scale)),
+            image = skimage.transform.resize(image, (round(h * scale), round(w * scale)),
                            preserve_range=True)
 
         # Need padding or cropping?

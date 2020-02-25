@@ -29,5 +29,6 @@ TRANSFORMS = ["remove_nodes(op=Identity)",
              "strip_unused_nodes",
              "fold_constants(ignore_errors=true)",
              "fold_batch_norms",
-             "quantize_nodes", 
-             "quantize_weights"]
+             # "quantize_nodes", 
+             # "quantize_weights"
+             ]
