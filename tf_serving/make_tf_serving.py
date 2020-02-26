@@ -1,22 +1,17 @@
-from export_config import *
 import tensorflow as tf
 import keras.backend as K
-from tensorflow.python.saved_model import signature_constants
-from tensorflow.python.saved_model import tag_constants
 from tensorflow.tools.graph_transforms import TransformGraph
-
+from tensorflow.compat.v1 import saved_model
 import os
 import sys
 
-sys.path.append(MRCNN_DIR)
-sys.path.append(COCO_DIR)
+import export_config
+
+sys.path.append(export_config.MRCNN_DIR)
+sys.path.append(export_config.COCO_DIR)
 
 from coco.coco import CocoConfig
 from mrcnn.model import MaskRCNN
-
-sess = tf.Session()
-K.set_session(sess)
-
 
 def get_coco_config():
   '''
@@ -49,11 +44,12 @@ def describe_graph(graph_def, show_nodes = False):
       print(f"Op:{node.op} - Name: {node.name}")
 
 
-def get_model_size(model_dir, model_file = "saved_model.pb"):
+def get_model_size(export_dir, version, model_file = "saved_model.pb"):
   '''
     Get size of the produced tf-serving model and count number of variables. This is a diagnostic function.
   '''
 
+  model_dir = os.path.join(export_dir, str(version))
   model_file_path = os.path.join(model_dir, model_file)
   print(model_file_path, '')
   pb_size = os.path.getsize(model_file_path)
@@ -71,95 +67,60 @@ def get_model_size(model_dir, model_file = "saved_model.pb"):
   print(f"Total Size: {round((pb_size + variables_size) / (1024.0),3)} KB")
 
 
-def freeze_session(session, keep_var_names = None, input_names = None, output_names = None, clear_devices = True, transforms = None):
-  '''
-    Freeze the tensorflow session and produce a frozen graph.
-    :transforms: list of transforms to apply when optimising the graph
-  '''
-  graph = sess.graph
+def freeze_model(model, transforms = None, clear_devices = True):
+  input_names = [input_tensor.op.name for input_tensor in model.inputs][:4]
+  output_names = [out.op.name for out in model.outputs][:4]
+  freeze_var_names = list(set(v.op.name for v in tf.compat.v1.global_variables()))
 
-  with graph.as_default():
-    freeze_var_names = list(set(v.op.name for v in tf.compat.v1.global_variables()).difference(keep_var_names or []))
+  g = tf.compat.v1.get_default_graph()
+  input_graph_def = g.as_graph_def()
 
-    output_names = output_names or []
-    input_names = input_names or []
-    input_graph_def = graph.as_graph_def()
+  if clear_devices:
+      for node in input_graph_def.node:
+          node.device = ""
 
-    if clear_devices:
-        for node in input_graph_def.node:
-            node.device = ""
+  frozen_graph = tf.compat.v1.graph_util.convert_variables_to_constants(
+      master_session, input_graph_def, output_names, freeze_var_names)
 
-    frozen_graph = tf.compat.v1.graph_util.convert_variables_to_constants(
-        session, input_graph_def, output_names, freeze_var_names)
-
-    print("*" * 80)
-    print("FROZEN GRAPH SUMMARY")
-    describe_graph(frozen_graph)
-    print("*" * 80)
-
-    if transforms:
-      optimized_graph = TransformGraph(frozen_graph, input_names, output_names, transforms)
-      print("*" * 80)
-      print("OPTIMIZED GRAPH SUMMARY")
-      describe_graph(optimized_graph)
-      print("*" * 80)
-      return optimized_graph
-    else:
-      return frozen_graph
-
-
-def freeze_model(model, name):
-  '''
-    Freeze the keras model and write the frozen graph 
-  '''
-  frozen_graph = freeze_session(sess,
-      output_names = [out.op.name for out in model.outputs][:4],
-      input_names = [input_tensor.op.name for input_tensor in model.inputs][:4],
-      transforms = TRANSFORMS)
-
-  directory = FROZEN_MODEL_PATH
-  tf.compat.v1.train.write_graph(frozen_graph, directory, name , as_text = False)
   print("*" * 80)
-  print("Finished converting the keras model to a frozen graph")
-  print("PATH: ", directory)
+  print("FROZEN GRAPH SUMMARY")
+  describe_graph(frozen_graph)
   print("*" * 80)
 
+  if transforms:
+    optimized_graph = TransformGraph(frozen_graph, input_names, output_names, transforms)
+    print("*" * 80)
+    print("OPTIMIZED GRAPH SUMMARY")
+    describe_graph(optimized_graph)
+    print("*" * 80)
+    return optimized_graph
+  else:
+    return frozen_graph
 
-def make_serving_ready(model_path, save_serve_path, version_number):
-  '''
-    Converts frozen graph to a tf-serving compatible model
-  '''
-  export_dir = os.path.join(save_serve_path, str(version_number))
-  graph_pb = model_path
 
-  builder = tf.compat.v1.saved_model.builder.SavedModelBuilder(export_dir)
+def export_saved_model(export_dir, version):
+  export_dir = os.path.join(export_dir, str(version))
+  builder = saved_model.builder.SavedModelBuilder(export_dir)
+  signature = {}
 
-  with tf.io.gfile.GFile(graph_pb, "rb") as f:
-    graph_def = tf.compat.v1.GraphDef()
-    graph_def.ParseFromString(f.read())
+  g = tf.compat.v1.get_default_graph()
 
-  sigs = {}
+  input_image = saved_model.build_tensor_info(g.get_tensor_by_name("input_image:0"))
+  input_image_meta = saved_model.build_tensor_info(g.get_tensor_by_name("input_image_meta:0"))
+  input_anchors = saved_model.build_tensor_info(g.get_tensor_by_name("input_anchors:0"))
 
-  with tf.Session(graph = tf.Graph()) as sess:
-    # name="" is important to ensure we don't get spurious prefixing
-    tf.import_graph_def(graph_def, name = "")
-    g = tf.get_default_graph()
-    input_image = g.get_tensor_by_name("input_image:0")
-    input_image_meta = g.get_tensor_by_name("input_image_meta:0")
-    input_anchors = g.get_tensor_by_name("input_anchors:0")
+  output_detection = saved_model.build_tensor_info(g.get_tensor_by_name("mrcnn_detection/Reshape_1:0"))
+  output_mask = saved_model.build_tensor_info(g.get_tensor_by_name("mrcnn_mask/Reshape_1:0"))
 
-    output_detection = g.get_tensor_by_name("mrcnn_detection/Reshape_1:0")
-    output_mask = g.get_tensor_by_name("mrcnn_mask/Reshape_1:0")
+  signature[saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY] = \
+    saved_model.signature_def_utils.build_signature_def(
+      inputs = {"input_image": input_image, "input_image_meta": input_image_meta, "input_anchors": input_anchors},
+      outputs = {"mrcnn_detection/Reshape_1": output_detection, "mrcnn_mask/Reshape_1": output_mask},
+      method_name = saved_model.signature_constants.PREDICT_METHOD_NAME)
 
-    sigs[signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY] = \
-        tf.saved_model.signature_def_utils.predict_signature_def(
-            {"input_image": input_image, "input_image_meta": input_image_meta, "input_anchors": input_anchors},
-            {"mrcnn_detection/Reshape_1": output_detection, "mrcnn_mask/Reshape_1": output_mask})
-
-    builder.add_meta_graph_and_variables(sess,
-                                         [tag_constants.SERVING],
-                                         signature_def_map=sigs)
-
+  builder.add_meta_graph_and_variables(export_session,
+                                       [saved_model.tag_constants.SERVING],
+                                       signature_def_map = signature)
   builder.save()
 
 
@@ -168,19 +129,18 @@ if __name__ == '__main__':
   coco_config = get_coco_config()
 
   # Load maask rcnn keras model and the pretrained weights
-  model = MaskRCNN(mode = "inference", model_dir = KERAS_MODEL_DIR, config = coco_config)
-  model.load_weights(KERAS_WEIGHTS_PATH, by_name = True)
+  model = MaskRCNN(mode = "inference", model_dir = export_config.KERAS_MODEL_DIR, config = coco_config)
+  model.load_weights(export_config.KERAS_WEIGHTS_PATH, by_name = True)
 
-  # Converts the keras model to a frozen graph
-  freeze_model(model.keras_model, FROZEN_NAME)
+  with K.get_session() as master_session:
+    graph_def = freeze_model(model.keras_model, transforms = export_config.TRANSFORMS)
 
-  # Convert the frozen graph to a tf serving model
-  make_serving_ready(os.path.join(FROZEN_MODEL_PATH, FROZEN_NAME),
-                       TF_SERVING_MODEL_PATH,
-                       VERSION_NUMBER)
+    with tf.Session(graph = tf.Graph()) as export_session:
+      tf.import_graph_def(graph_def, name = "")
+      export_saved_model(export_config.EXPORT_DIR, export_config.VERSION_NUMBER)
 
   # Print the size of the tf-serving model
   print("*" * 80)
-  get_model_size(os.path.join(TF_SERVING_MODEL_PATH, str(VERSION_NUMBER)))
+  get_model_size(export_config.EXPORT_DIR, export_config.VERSION_NUMBER)
   print("*" * 80)
   print("COMPLETED")
