@@ -78,6 +78,13 @@ class PostprocessImage():
         scores: [N] Float probability scores of the class_id
         masks: [height, width, num_instances] Instance masks
         """
+
+        # reshape tf serving output
+        # the number '6' correspond to bbox coordinates (4) + class_id (1) + class confidence (1)
+        detections = detections.reshape(-1, *(self.config.BATCH_SIZE, self.config.MAX_GT_INSTANCES, 6))
+        mrcnn_mask = mrcnn_mask.reshape(-1, *(self.config.BATCH_SIZE, self.config.MAX_GT_INSTANCES,
+            self.config.MASK_SHAPE[0], self.config.MASK_SHAPE[1], self.config.NUM_CLASSES))
+
         # How many detections do we have?
         # Detections array is padded with zeros. Find the first class_id == 0.
         zero_ix = np.where(detections[:,:,:, 4] == 0)[2]
