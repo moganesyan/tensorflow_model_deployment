@@ -1,8 +1,11 @@
 import numpy as np
 import skimage
+
 class PostprocessImage():
     def __init__(self, config):
-        self.config = config
+        """config: COCO style configuration object for the Mask RCNN.
+        """
+        self._config = config
 
 
     def norm_boxes(self, boxes, shape):
@@ -81,9 +84,9 @@ class PostprocessImage():
 
         # reshape tf serving output
         # the number '6' correspond to bbox coordinates (4) + class_id (1) + class confidence (1)
-        detections = detections.reshape(-1, *(self.config.BATCH_SIZE, self.config.MAX_GT_INSTANCES, 6))
-        mrcnn_mask = mrcnn_mask.reshape(-1, *(self.config.BATCH_SIZE, self.config.MAX_GT_INSTANCES,
-            self.config.MASK_SHAPE[0], self.config.MASK_SHAPE[1], self.config.NUM_CLASSES))
+        detections = detections.reshape(-1, *(self._config.BATCH_SIZE, self._config.MAX_GT_INSTANCES, 6))
+        mrcnn_mask = mrcnn_mask.reshape(-1, *(self._config.BATCH_SIZE, self._config.MAX_GT_INSTANCES,
+            self._config.MASK_SHAPE[0], self._config.MASK_SHAPE[1], self._config.NUM_CLASSES))
 
         # How many detections do we have?
         # Detections array is padded with zeros. Find the first class_id == 0.

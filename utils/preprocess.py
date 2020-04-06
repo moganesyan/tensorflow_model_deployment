@@ -1,16 +1,18 @@
 import numpy as np
-import pandas as pd
 import math
 import skimage
 
 class PreprocessImage():
     def __init__(self, config):
-        self.config = config
+        """config: COCO style configuration object for the Mask RCNN.
+        """
+        self._config = config
 
 
     def compose_image_meta(self, image_id, original_image_shape, image_shape,
         window, scale, active_class_ids):
-
+        """Returns input image metadata
+        """
         meta = np.array(
             [image_id] + 
             list(original_image_shape) +
@@ -24,18 +26,22 @@ class PreprocessImage():
 
 
     def mold_image(self, images):
-        return images.astype(np.float32) - self.config.MEAN_PIXEL
+        """Substracts mean pixel from the image and casts dtype to float32.
+        """
+        return images.astype(np.float32) - self._config.MEAN_PIXEL
 
 
     def compute_backbone_shapes(self, image_shape):
-        if callable(self.config.BACKBONE):
-            return self.config.COMPUTE_BACKBONE_SHAPE(image_shape)
+        """Computes Mask RCNN backbone shapes
+        """
+        if callable(self._config.BACKBONE):
+            return self._config.COMPUTE_BACKBONE_SHAPE(image_shape)
 
-        assert self.config.BACKBONE in ["resnet50", "resnet101"]
+        assert self._config.BACKBONE in ["resnet50", "resnet101"]
         return np.array(
             [[int(math.ceil(image_shape[0] / stride)),
                 int(math.ceil(image_shape[1] / stride))]
-                for stride in self.config.BACKBONE_STRIDES])
+                for stride in self._config.BACKBONE_STRIDES])
 
 
     def generate_anchors(self, scales, ratios, shape, feature_stride, anchor_stride):
@@ -123,11 +129,11 @@ class PreprocessImage():
         if not tuple(image_shape) in self._anchor_cache:
             # Generate Anchors
             a = self.generate_pyramid_anchors(
-                self.config.RPN_ANCHOR_SCALES,
-                self.config.RPN_ANCHOR_RATIOS,
+                self._config.RPN_ANCHOR_SCALES,
+                self._config.RPN_ANCHOR_RATIOS,
                 backbone_shapes,
-                self.config.BACKBONE_STRIDES,
-                self.config.RPN_ANCHOR_STRIDE)
+                self._config.BACKBONE_STRIDES,
+                self._config.RPN_ANCHOR_STRIDE)
             # Keep a copy of the latest anchors in pixel coordinates because
             # it's used in inspect_model notebooks.
             # TODO: Remove this after the notebook are refactored to not use it
@@ -246,18 +252,31 @@ class PreprocessImage():
 
 
     def preprocess_input(self, img):
+        """Pre-processes the input image.
+        img: Input image of shape (-1,XX,YY,3)
+        Returns:
+        molded_image: Molded image to be used as model input
+        image_meta: Input image metadata
+        anchors: [N, (y1, x1, y2, x2)]. All generated anchors in one array. Sorted
+            with the same order of the given scales. So, anchors of scale[0] come
+            first, then anchors of scale[1], and so on.
+        window: (y1, x1, y2, x2). If max_dim is provided, padding might
+            be inserted in the returned image. If so, this window is the
+            coordinates of the image part of the full image (excluding
+            the padding). The x2, y2 pixels are not included.
+        """
         molded_image, window, scale, padding, crop = self.resize_image(
             img,
-            min_dim=self.config.IMAGE_MIN_DIM,
-            min_scale=self.config.IMAGE_MIN_SCALE,
-            max_dim=self.config.IMAGE_MAX_DIM,
-            mode=self.config.IMAGE_RESIZE_MODE
+            min_dim=self._config.IMAGE_MIN_DIM,
+            min_scale=self._config.IMAGE_MIN_SCALE,
+            max_dim=self._config.IMAGE_MAX_DIM,
+            mode=self._config.IMAGE_RESIZE_MODE
         )
         molded_image = self.mold_image(molded_image)
 
         image_meta = self.compose_image_meta(
             0, img.shape, molded_image.shape, window, scale,
-            np.zeros([self.config.NUM_CLASSES], dtype=np.int32)
+            np.zeros([self._config.NUM_CLASSES], dtype=np.int32)
         )
 
         anchors = self.get_anchors(molded_image.shape)
