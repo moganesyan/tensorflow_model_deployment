@@ -1,0 +1,10 @@
+tensorflow-gpu==1.15.0
+tensorflow-serving-api==1.14.0
+scikit-image==0.15.0
+numpy==1.16.4
+pandas==0.24.2
+matplotlib==3.1.2
+Keras==2.3.1
+Flask==1.1.2
+requests==2.22.0
+grpcio==1.22.0

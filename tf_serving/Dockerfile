@@ -1,2 +1,2 @@
 FROM tensorflow/serving:latest-gpu
-ENV MODEL_NAME coco_mrcnn
+COPY exported_models/* /models/

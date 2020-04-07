@@ -147,5 +147,4 @@ static
 
 # ptojrct specific
 logs/
-serving_model/
-frozen_model/
+exported_models/
