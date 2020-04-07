@@ -9,8 +9,7 @@ This repository includes the code to:
 * Apply optional graph optimizations such as weights quantization
 * Export into the SavedModel format to be used for TF-Serving
 * Build a Docker image based on top of TF-Serving
-* Jupyter Notebook to test out the model
-* Bonus: Basic Flask-based Mask RCNN web app for comparison purposes
+* Jupyter Notebook to test out the deployment
 
 # Getting Started
 
@@ -20,14 +19,8 @@ This repository includes the code to:
 * (Optional): In the same folder, run `build_image.sh` to build and run a docker image serving the exported model. If you don't have a GPU, remove `_gpu` on the first line of the docker file.
 * (Optional): Play around with the [Jupyter Notebook][4] to call the served models and visualize the results.
 
-### Optional
-If you wish to try the basic Flask API. Run the following commands:
-* `export FLASK_APP=app.py`
-* `flask run`
-The code for testing out the web app can also be found in the [notebook][4].
-
 
 [1]: https://github.com/matterport/Mask_RCNN "Mask RCNN"
 [2]: https://github.com/moganesyan/tensorflow_model_deployment/blob/mask-r-cnn/tf_serving/export_config.py "export_config"
 [3]: https://github.com/moganesyan/tensorflow_model_deployment/tree/mask-r-cnn/tf_serving "tf_serving"
-[4]: https://github.com/moganesyan/tensorflow_model_deployment/blob/mask-r-cnn/notebooks/TF_SERVING_Model_Test.ipynb "notebook"
+[4]: https://github.com/moganesyan/tensorflow_model_deployment/blob/mask-r-cnn/notebooks/tf_serving_model_test.ipynb "notebook"
