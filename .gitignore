@@ -145,7 +145,6 @@ static
 # mac specific junk
 .DS_Store
 
-# ptojrct specific
+# project specific
 logs/
-serving_model/
-frozen_model/
+*.pb

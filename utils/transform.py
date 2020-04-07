@@ -23,6 +23,6 @@ class ImageTransform():
             image,
             (self.config.IMAGE_MAX_DIM, self.config.IMAGE_MAX_DIM),
             anti_aliasing=True,
-            preserve_range=True)
+            preserve_range=True).astype(np.uint8)
 
         return image

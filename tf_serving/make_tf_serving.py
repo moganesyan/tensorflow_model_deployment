@@ -5,10 +5,10 @@ from tensorflow.compat.v1 import saved_model
 import os
 import sys
 
-import export_config
+from export_config import ExportConfig
 
-sys.path.append(export_config.MRCNN_DIR)
-sys.path.append(export_config.COCO_DIR)
+sys.path.append(ExportConfig.MRCNN_DIR)
+sys.path.append(ExportConfig.COCO_DIR)
 
 from coco.coco import CocoConfig
 from mrcnn.model import MaskRCNN
@@ -140,20 +140,23 @@ def export_saved_model(export_dir, version):
 if __name__ == '__main__':
     # Get model config
     model_config = get_model_config()
-
+    export_dir = os.path.join(ExportConfig.EXPORT_DIR, ExportConfig.MODEL_NAME)
+    if not os.path.exists(export_dir):
+        os.mkdir(export_dir)
+        
     # Load maask rcnn keras model and the pretrained weights
-    model = MaskRCNN(mode = "inference", model_dir = export_config.KERAS_MODEL_DIR, config = model_config)
-    model.load_weights(export_config.KERAS_WEIGHTS_PATH, by_name = True)
+    model = MaskRCNN(mode = "inference", model_dir = ExportConfig.KERAS_MODEL_DIR, config = model_config)
+    model.load_weights(ExportConfig.KERAS_WEIGHTS_PATH, by_name = True)
 
     with K.get_session() as master_session:
-        graph_def = freeze_model(model.keras_model, transforms = export_config.TRANSFORMS)
+        graph_def = freeze_model(model.keras_model, transforms = ExportConfig.TRANSFORMS)
 
         with tf.Session(graph = tf.Graph()) as export_session:
             tf.import_graph_def(graph_def, name = "")
-            export_saved_model(export_config.EXPORT_DIR, export_config.VERSION_NUMBER)
+            export_saved_model(export_dir, ExportConfig.VERSION_NUMBER)
 
     # Print the size of the tf-serving model
     print("*" * 80)
-    get_model_size(export_config.EXPORT_DIR, export_config.VERSION_NUMBER)
+    get_model_size(export_dir, ExportConfig.VERSION_NUMBER)
     print("*" * 80)
     print("COMPLETED")
